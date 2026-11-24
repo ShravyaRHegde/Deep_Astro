@@ -1,101 +1,72 @@
-"""Observational noise, missing cadence, and redshift degradation simulators."""
+"""
+src/stress_test/degradations.py
+Stage 5 - Observational Robustness & Stress-Testing Suite
+"""
 
 import numpy as np
+from typing import List
+
+FLUX_FEATURE_SLICE = slice(0, 90)
+REDSHIFT_COL = 100
 
 
-def simulate_cadence_dropouts(
-    lc_matrix: np.ndarray,
-    dropout_fraction: float = 0.4,
-    random_state: int = 42,
-) -> np.ndarray:
-    """Simulates missed observations due to bad weather or survey cadence interruptions.
-    
-    Args:
-        lc_matrix: Array of shape (N, N_timesteps, 4) with entries [flux, error, time, wavelength].
-        dropout_fraction: Fraction of non-zero observations to drop (0.0 to 0.9).
-        random_state: Random seed for reproducibility.
-        
-    Returns:
-        Degraded light curve array with masked observations.
-    """
-    rng = np.random.RandomState(random_state)
-    degraded = lc_matrix.copy()
-    n_samples, n_timesteps, n_features = degraded.shape
-
+def cadence_dropout(X, drop_fraction, random_state=42):
+    """Simulate cloudy nights by zeroing drop_fraction of features per sample."""
+    if not 0.0 <= drop_fraction < 1.0:
+        raise ValueError(f"drop_fraction must be in [0, 1), got {drop_fraction}")
+    rng = np.random.default_rng(random_state)
+    X_degraded = X.copy().astype(float)
+    n_samples, n_features = X_degraded.shape
+    n_drop = max(1, int(n_features * drop_fraction))
     for i in range(n_samples):
-        # Identify active (non-zero) timesteps
-        active_indices = np.where(np.abs(degraded[i, :, 0]) > 1e-6)[0]
-        if len(active_indices) > 2:
-            n_drop = int(len(active_indices) * dropout_fraction)
-            drop_idx = rng.choice(active_indices, size=n_drop, replace=False)
-            degraded[i, drop_idx, :] = 0.0
-
-    return degraded
+        drop_cols = rng.choice(n_features, size=n_drop, replace=False)
+        X_degraded[i, drop_cols] = 0.0
+    return X_degraded
 
 
-def simulate_photometric_noise(
-    lc_matrix: np.ndarray,
-    noise_multiplier: float = 2.0,
-    random_state: int = 42,
-) -> np.ndarray:
-    """Escalates photometric measurement errors and injects proportional Gaussian noise into flux values.
-    
-    Args:
-        lc_matrix: Array of shape (N, N_timesteps, 4).
-        noise_multiplier: Factor by which to escalate uncertainty (e.g., 1.5, 2.0, 3.0).
-        random_state: Random seed.
-        
-    Returns:
-        Noisy light curve array.
-    """
-    rng = np.random.RandomState(random_state)
-    noisy = lc_matrix.copy()
-
-    # Column 0 is flux, Column 1 is uncertainty
-    flux = noisy[:, :, 0]
-    error = noisy[:, :, 1]
-    active_mask = np.abs(flux) > 1e-6
-
-    # Scale error column
-    noisy[:, :, 1] = error * noise_multiplier
-
-    # Perturb flux by added Gaussian scatter
-    added_noise = rng.normal(loc=0.0, scale=error * (noise_multiplier - 1.0))
-    noisy[:, :, 0] = np.where(active_mask, flux + added_noise, 0.0)
-
-    return noisy
+def cadence_dropout_sweep(X, drop_levels=[0.20, 0.40, 0.60, 0.80], random_state=42):
+    """Apply cadence_dropout at multiple drop levels."""
+    return {level: cadence_dropout(X, level, random_state=random_state) for level in drop_levels}
 
 
-def simulate_redshift_degradation(
-    context_matrix: np.ndarray,
-    mode: str = "photo_z",
-    scatter_factor: float = 0.05,
-    random_state: int = 42,
-) -> np.ndarray:
-    """Simulates real-world alert scenarios where spectroscopic host redshift is unavailable.
-    
-    Args:
-        context_matrix: Array of shape (N, 2) containing [Milky Way extinction, host redshift].
-        mode: 'exact' (no change), 'photo_z' (photometric redshift with scatter), or 'no_z' (zeroed).
-        scatter_factor: Photometric redshift error sigma_z / (1 + z).
-        random_state: Random seed.
-        
-    Returns:
-        Degraded context array.
-    """
-    rng = np.random.RandomState(random_state)
-    degraded = context_matrix.copy()
+def add_photometric_noise(X, noise_scale, random_state=42):
+    """Add scaled Gaussian noise to flux/magnitude features."""
+    if noise_scale < 1.0:
+        raise ValueError(f"noise_scale must be >= 1.0, got {noise_scale}")
+    rng = np.random.default_rng(random_state)
+    X_noisy = X.copy().astype(float)
+    flux_cols = X_noisy[:, FLUX_FEATURE_SLICE]
+    feature_stds = np.std(flux_cols, axis=0) + 1e-8
+    noise_amplitude = (noise_scale - 1.0) * feature_stds
+    noise = rng.normal(loc=0.0, scale=noise_amplitude, size=flux_cols.shape)
+    X_noisy[:, FLUX_FEATURE_SLICE] = flux_cols + noise
+    return X_noisy
 
-    if mode == "exact":
-        return degraded
-    elif mode == "no_z":
-        degraded[:, 1] = 0.0
-        return degraded
-    elif mode == "photo_z":
-        z_true = degraded[:, 1]
-        sigma = scatter_factor * (1.0 + z_true)
-        z_noisy = z_true + rng.normal(0.0, sigma)
-        degraded[:, 1] = np.maximum(0.0, z_noisy)
-        return degraded
+
+def photometric_noise_sweep(X, noise_levels=[1.5, 2.0, 3.0], random_state=42):
+    """Apply noise at multiple scale levels."""
+    return {scale: add_photometric_noise(X, scale, random_state=random_state) for scale in noise_levels}
+
+
+def remove_redshift(X, fraction=1.0, noisy=False, noise_std=0.3, random_state=42):
+    """Simulate missing spectroscopic host redshift."""
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError(f"fraction must be in [0, 1], got {fraction}")
+    rng = np.random.default_rng(random_state)
+    X_masked = X.copy().astype(float)
+    n_samples = X_masked.shape[0]
+    n_mask = int(n_samples * fraction)
+    if n_mask == 0:
+        return X_masked
+    mask_indices = rng.choice(n_samples, size=n_mask, replace=False)
+    if noisy:
+        z_values = X_masked[mask_indices, REDSHIFT_COL]
+        X_masked[mask_indices, REDSHIFT_COL] = z_values + rng.normal(loc=0.0, scale=noise_std, size=n_mask)
     else:
-        raise ValueError(f"Unknown mode: {mode}. Choose from 'exact', 'photo_z', 'no_z'.")
+        X_masked[mask_indices, REDSHIFT_COL] = 0.0
+    return X_masked
+
+
+def redshift_sweep(X, fractions=[0.25, 0.50, 0.75, 1.00], random_state=42):
+    """Apply redshift removal at multiple missing fractions."""
+    return {frac: remove_redshift(X, fraction=frac, noisy=False, random_state=random_state) for frac in fractions}
