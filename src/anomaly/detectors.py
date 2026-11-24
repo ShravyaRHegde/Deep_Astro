@@ -98,7 +98,8 @@ class GlobalLOF(BaseAnomalyDetector):
         return self
 
     def score(self, x_latent: np.ndarray) -> np.ndarray:
-        return -self.model.decision_function(x_latent)
+        raw = -self.model.decision_function(x_latent)
+        return np.nan_to_num(raw, nan=0.0, posinf=1.0, neginf=-1.0)
 
 
 class MultiClassLOF(BaseAnomalyDetector):
@@ -132,7 +133,8 @@ class MultiClassLOF(BaseAnomalyDetector):
         class_scores = []
         for c in self.classes:
             detector = self.lofs[c]
-            class_scores.append(-detector.decision_function(x_latent))
+            raw = -detector.decision_function(x_latent)
+            class_scores.append(np.nan_to_num(raw, nan=0.0, posinf=1.0, neginf=-1.0))
         return np.array(class_scores).T
 
     def score(self, x_latent: np.ndarray) -> np.ndarray:
