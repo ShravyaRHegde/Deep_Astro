@@ -22,6 +22,8 @@
 | **Stage 8: Empirical Benchmark** | Full 14-Class Real-Data One-vs-Rest Evaluation | **Done** | `results/benchmark_all_14_classes.csv`, [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md) |
 | **Stage 9: Observational Stress Test** | Missing Cadence, Photometric Noise & Redshift Degradation | Ready for Team | `src/stress_test/degradations.py` (Objective 3) |
 
+> 📋 **Collaborator Roadmap & Stage Breakdown**: See [STAGES.md](STAGES.md) for the multi-stage implementation plan, collaborator branch assignments, and integration guide.
+
 ---
 
 ## 1. Executive Summary
