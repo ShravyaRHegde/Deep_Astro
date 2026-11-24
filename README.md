@@ -2,8 +2,25 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/Framework-TensorFlow%20%2F%20Keras%20%7C%20Scikit--Learn-orange.svg)](https://keras.io/)
-[![Survey Scale](https://img.shields.io/badge/Survey%20Target-ZTF%20%7C%20Rubin%20LSST-purple.svg)](https://www.lsst.org/)
+[![Survey Target](https://img.shields.io/badge/Survey%20Target-ZTF%20%7C%20Rubin%20LSST-purple.svg)](https://www.lsst.org/)
+[![Release Baseline](https://img.shields.io/badge/Release-v0.1--baseline-success.svg)](https://github.com/ShravyaRHegde/Deep_Astro/releases/tag/v0.1-baseline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
+
+## 📌 Project Status: Foundational Base Platform Complete (v0.1-baseline)
+
+| Milestone Stage | Component / Task | Status | Output / Documentation |
+| :--- | :--- | :---: | :--- |
+| **Stage 1: Architecture & Design** | System Flowchart & Mathematical Formulations | **Done** | [docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) |
+| **Stage 2: Environment Setup** | Core ML, TensorFlow, Keras, Astropy & Astromcad | **Done** | `requirements.txt` |
+| **Stage 3: Data Strategy & Safety** | Memory Safety, Subsampling & Dimensionality Rules | **Done** | [docs/DATA_STRATEGY.md](docs/DATA_STRATEGY.md), [docs/DATASET_SPLIT_GUIDE.md](docs/DATASET_SPLIT_GUIDE.md) |
+| **Stage 4: Dataset Ingestion** | Real ZTF ALeRCE (93,171 Train / 22,978 Test Transients) | **Done** | `src/data_cleaning.py`, `data/processed/` |
+| **Stage 5: Data Cleaning** | Filter `Periodic-Other`, Median Imputation, RobustScaler | **Done** | `clean_train.parquet`, `clean_test.parquet` |
+| **Stage 6: Anomaly Algorithms** | Global IF, MCIF, Global LOF, Multi-Class LOF (MCLOF) | **Done** | `src/anomaly/detectors.py` |
+| **Stage 7: Dynamic Thresholding** | Cluster-Standardization & Quantile Normalization | **Done** | `src/thresholding/adaptive.py` (Objective 1) |
+| **Stage 8: Empirical Benchmark** | Full 14-Class Real-Data One-vs-Rest Evaluation | **Done** | `results/benchmark_all_14_classes.csv`, [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md) |
+| **Stage 9: Observational Stress Test** | Missing Cadence, Photometric Noise & Redshift Degradation | Ready for Team | `src/stress_test/degradations.py` (Objective 3) |
 
 ---
 
@@ -181,25 +198,39 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 7.3 Running the Multi-Algorithm Benchmark
-Execute the automated benchmark comparing MCIF, Global IF, Global LOF, and Multi-Class LOF across fixed and dynamic thresholding:
+### 7.3 Running the Benchmarks
+
+#### A. Fast Prototyping Benchmark (Synthetic Latent Space):
 ```bash
 python experiments/run_benchmark.py
 ```
 
-Sample output:
+#### B. Full Real-Data 14-Class ZTF Benchmark:
+Execute the one-vs-rest evaluation across all 14 transient, stochastic, and periodic classes:
+```bash
+python experiments/real_data_benchmark.py
+```
+
+#### Real-Data Benchmark Output (Mean AUROC Across All 14 Classes):
 ```text
-================================================================================
-                    DEEP_ASTRO ALGORITHM BENCHMARK RESULTS                     
-================================================================================
-Detector        Threshold Strategy     AUROC    AUCPR    Recall@Top2000  CaRT Recall
---------------------------------------------------------------------------------
-Global_IForest  Static Global          0.812    0.418    51.8%           12.4%
-Global_LOF      Static Global          0.794    0.389    48.2%            9.8%
-MCIF (Paper)    Static Global          0.895    0.684    74.2%           28.6%
-MCIF (Ours)     Cluster-Standardized   0.923    0.741    83.5%           64.7%
-MCLOF (Ours)    Cluster-Standardized   0.918    0.732    81.9%           61.2%
-================================================================================
+==========================================================================================
+                     BENCHMARK SUMMARY ACROSS ALL 14 CLASSES                    
+==========================================================================================
+Mean AUROC across all 14 classes:
+  • Global Isolation Forest: 0.6252
+  • Global LOF (Our Base):   0.6082
+  • MCIF (Paper Baseline):   0.6506 (Highest overall mean)
+  • MCLOF (Our Extension):   0.5529
+  • MCIF + Adaptive (Obj 1): 0.6423
+------------------------------------------------------------------------------------------
+Win distribution across 14 classes:
+  • MCIF (Paper):            6 wins (SNIa, SNIbc, CEP, DSCT, E, RRL)
+  • Global IF:               4 wins (SNII, CV/Nova, QSO, YSO)
+  • Global LOF (Our Base):   2 wins (SLSN, AGN)
+  • MCIF + Adaptive (Obj 1): 2 wins (Blazar, LPV)
+==========================================================================================
+Full results saved to results/benchmark_all_14_classes.csv
+Detailed analysis: docs/BENCHMARK_RESULTS.md
 ```
 
 ---
