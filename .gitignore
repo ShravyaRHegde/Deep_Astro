@@ -58,3 +58,7 @@ data/*.zip
 # Ignore downloaded benchmark datasets
 data/benchmark_alerce/
 data/*.pkl
+
+# Processed datasets
+data/processed/*.parquet
+data/processed/*.npz
